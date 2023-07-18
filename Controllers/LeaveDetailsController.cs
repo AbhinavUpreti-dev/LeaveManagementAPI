@@ -2,6 +2,7 @@
 using LeaveManagement.Application.Contracts;
 using LeaveManagement.Application.Entity;
 using LeaveManagement.Application.Models;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using System.Net;
 
@@ -12,6 +13,7 @@ namespace LeaveManagementAPI.Controllers
     [ApiVersion("1.0")]
     [Route("api/v{version:apiVersion}/[controller]")]
     [ApiController]
+    [Authorize]
     public class LeaveDetailsController : ControllerBase
     {
         public ILeaveRepository leaveRepository { get; }
@@ -26,6 +28,8 @@ namespace LeaveManagementAPI.Controllers
         }
         // GET: api/<LeaveDetailsController>
         [HttpGet]
+        [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
+        [ProducesResponseType((int)HttpStatusCode.OK)]
         public async Task<ActionResult<IEnumerable<LeaveDetails>>> Get()
         {
             var leaveDetails = await leaveRepository.GetAllLeaveDetails();
@@ -50,7 +54,8 @@ namespace LeaveManagementAPI.Controllers
             var anyValidUser = await UserRepository.AnyUserExists(leaveDetails.EmployeeId);
             if (anyValidUser == false)
             {
-                return BadRequest("Invalid Employee Id");
+                throw new BadHttpRequestException("Invalid Employee Id");
+                //return BadRequest("Invalid Employee Id");
             }
             else
             {
