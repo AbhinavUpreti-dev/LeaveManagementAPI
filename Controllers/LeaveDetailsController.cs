@@ -1,10 +1,15 @@
 ﻿using AutoMapper;
 using LeaveManagement.Application.Contracts;
-using LeaveManagement.Application.Entity;
+using LeaveManagement.Core.Entity;
 using LeaveManagement.Application.Models;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
+using Sieve.Models;
+using Sieve.Services;
 using System.Net;
+using MediatR;
+using LeaveManagement.Application.UseCases.Queries;
 
 // For more information on enabling Web API for empty projects, visit https://go.microsoft.com/fwlink/?LinkID=397860
 
@@ -16,24 +21,28 @@ namespace LeaveManagementAPI.Controllers
     [Authorize]
     public class LeaveDetailsController : ControllerBase
     {
+        private readonly ISieveProcessor _sieveProcessor;
+        private readonly IMediator _mediator;
+
         public ILeaveRepository leaveRepository { get; }
         public IUserRepository UserRepository { get; }
         public IMapper Mapper { get; }
 
-        public LeaveDetailsController(ILeaveRepository _leaveRepository,IUserRepository userRepository, IMapper _mapper)
+        public LeaveDetailsController(ILeaveRepository _leaveRepository,IUserRepository userRepository, IMapper _mapper, ISieveProcessor sieveProcessor,IMediator mediator)
         {
             leaveRepository = _leaveRepository;
             UserRepository = userRepository;
             Mapper = _mapper;
+            _sieveProcessor = sieveProcessor;
+            this._mediator = mediator;
         }
         // GET: api/<LeaveDetailsController>
         [HttpGet]
         [ProducesResponseType((int)HttpStatusCode.Unauthorized)]
         [ProducesResponseType((int)HttpStatusCode.OK)]
-        public async Task<ActionResult<IEnumerable<LeaveDetails>>> Get()
+        public async Task<ActionResult<IEnumerable<LeaveDetails>>> Get([FromQuery] SieveModel sieveModel)
         {
-            var leaveDetails = await leaveRepository.GetAllLeaveDetails();
-            var result = Mapper.Map<IEnumerable<LeaveDetails>>(leaveDetails);
+            var result = await this._mediator.Send(new GetLeaveDetailsQuery { sieveModel=sieveModel});
             return Ok(result);
         }
 
@@ -51,17 +60,6 @@ namespace LeaveManagementAPI.Controllers
         public async Task<ActionResult> Post([FromBody] LeaveDetails leaveDetails)
         {
             var leaveDetailsEntity = Mapper.Map<LeaveDetailsEntity>(leaveDetails);
-            var anyValidUser = await UserRepository.AnyUserExists(leaveDetails.EmployeeId);
-            if (anyValidUser == false)
-            {
-                throw new BadHttpRequestException("Invalid Employee Id");
-                //return BadRequest("Invalid Employee Id");
-            }
-            else
-            {
-                
-                leaveDetailsEntity.User = await UserRepository.GetEntityById(leaveDetails.EmployeeId);
-            }
             leaveDetailsEntity.Status = "Pending Approval";
             await leaveRepository.CreateEntity(leaveDetailsEntity);
             return  CreatedAtAction(nameof(Get), new { id = leaveDetailsEntity.Id }, null);
